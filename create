@@ -67,4 +67,4 @@ fi
 verbose "Running the iptables command..."
 $IP_TABLES_COMMAND
 
-success 'ALL DONE. SSH to root@10.255.0.$CONTAINER_ID with password: vTLNBz0nE8Dz_t1tQE7I4p9P0lAYra'
+success "ALL DONE. SSH to root@10.255.0.$CONTAINER_ID with password: $PASSWORD"
