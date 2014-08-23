@@ -1,0 +1,9 @@
+deb http://ftp.bg.debian.org/debian wheezy main contrib non-free
+deb-src http://ftp.bg.debian.org/debian wheezy main contrib non-free
+
+deb http://security.debian.org/ wheezy/updates main
+deb-src http://security.debian.org/ wheezy/updates main
+
+# wheezy-updates, previously known as 'volatile'
+deb http://debian.ludost.net/debian/ wheezy-updates main
+deb-src http://debian.ludost.net/debian/ wheezy-updates main

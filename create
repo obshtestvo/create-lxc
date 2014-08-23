@@ -1,0 +1,68 @@
+#!/bin/bash
+
+set -e
+
+. `dirname $0`/helper-functions
+
+LAST_CONTAINER_ID=`grep --no-filename 'lxc.network.ipv4 =' /var/lib/lxc/*/config|cut -d'=' -f2|cut -d'/' -f1|cut -d'.' -f4|sort -n|tail -n1`
+CONTAINER_ID=$(( $LAST_CONTAINER_ID + 1 ))
+
+ask_required "Enter a container name" "$1" && CONTAINER_NAME="$REPLY"
+ask_required "Pick a container ID" $CONTAINER_ID 5 && CONTAINER_ID=$REPLY
+
+CONTAINER_PATH="/var/lib/lxc/$CONTAINER_NAME"
+
+if [ -f $CONTAINER_PATH/config ]; then
+	success "Container '$CONTAINER_NAME' already created, reconfiguring..."
+else
+	verbose "Creating container '$CONTAINER_NAME' with ID $CONTAINER_ID, please wait..."
+	lxc-create -n $CONTAINER_NAME -t debian -- -r wheezy
+	success "Container '$CONTAINER_NAME' created."
+fi
+
+HEX_ID=`echo "obase=16; $CONTAINER_ID" | bc`
+if [ ${#HEX_ID} = 1 ]; then
+	HEX_ID="0$HEX_ID"
+fi
+MAC_ADDRESS="00:00:00:00:00:$HEX_ID"
+verbose "MAC address will be: $MAC_ADDRESS"
+
+copy_template templates/config $CONTAINER_PATH/config
+copy_template templates/interfaces $CONTAINER_PATH/rootfs/etc/network/interfaces
+copy_template templates/sources.list $CONTAINER_PATH/rootfs/etc/apt/sources.list
+
+verbose "Checking dependencies..."
+which sshpass > /dev/null || { verbose "Installing sshpass..." && apt-get -y install sshpass; }
+
+verbose "Starting container '$CONTAINER_NAME' in the background..."
+lxc-start -d -n $CONTAINER_NAME
+
+verbose "Logging into the container to perform additional setup..."
+PASSWORD=`< /dev/urandom tr -dc A-Za-z0-9_ | head -c30`
+note "Will change the container's root password to: $PASSWORD"
+sshpass -p root ssh -o StrictHostKeyChecking=no root@10.255.0.$CONTAINER_ID "
+	echo 'root:$PASSWORD' | chpasswd \
+	&& echo root password changed to: $PASSWORD \
+	&& apt-get update \
+	&& apt-get -y dist-upgrade \
+	&& apt-get -y install vim iputils-ping python python-pip gcc libc6-dev python-dev git
+"
+
+verbose "Setting up NAT redirection..."
+PORT_NUMBER="22`printf '%02d' $CONTAINER_ID`"
+IP_TABLES_COMMAND="iptables -t nat -A PREROUTING -i eth0 -p tcp -m tcp --dport $PORT_NUMBER -j DNAT --to-destination 10.255.0.$CONTAINER_ID:22"
+verbose $IP_TABLES_COMMAND
+
+if grep "$IP_TABLES_COMMAND" /etc/rc.local > /dev/null; then
+	success "/etc/rc.local already updated"
+else
+	verbose "Updating rc.local with:"
+	awk "/iptables -t nat -A POSTROUTING/ { print; print \"$IP_TABLES_COMMAND\"; next }1" /etc/rc.local > /tmp/rc.local
+	diff -c /etc/rc.local /tmp/rc.local || true
+	mv /tmp/rc.local /etc/rc.local
+fi
+
+verbose "Running the iptables command..."
+$IP_TABLES_COMMAND
+
+success 'ALL DONE. SSH to root@10.255.0.$CONTAINER_ID with password: vTLNBz0nE8Dz_t1tQE7I4p9P0lAYra'

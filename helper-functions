@@ -1,0 +1,157 @@
+SCRIPT_NAME=`basename $0`
+ROOT=`dirname $0`
+
+function press_any_key {
+	[ $1 ] && TIMEOUT=$1 || TIMEOUT=10
+	[ "$TIMEOUT" == "0" ] && TIMEOUT_OPTION='' || TIMEOUT_OPTION="-t $TIMEOUT"
+	note 'Press any key to continue...'
+	read -n 1 $TIMEOUT_OPTION || true
+}
+
+function ask {
+	[ -n "$1" ] && PROMPT="$1" || PROMPT='Please enter'
+	[ -n "$2" ] && DEFAULT="$2" || DEFAULT=''
+	[ -n "$3" ] && TIMEOUT="$3" || [ -z "$DEFAULT" ] && TIMEOUT=0 || TIMEOUT=10
+	[ "$TIMEOUT" == "0" ] && TIMEOUT_OPTION='' || TIMEOUT_OPTION="-t $TIMEOUT"
+	echo -n "$PROMPT [$DEFAULT]: "
+	read $TIMEOUT_OPTION || true
+	[ -z "$REPLY" ] && REPLY="$DEFAULT" || true
+}
+
+function ask_required {
+	REPLY=""
+	while [ -z "$REPLY" ]; do
+		ask "$@"
+	done
+}
+
+function ip2int {
+	local a b c d
+	IFS=. read -r a b c d <<< "$1"
+	printf '%d\n' "$((a * 256 ** 3 + b * 256 ** 2 + c * 256 + d))"
+}
+
+function is_fully_qualified_domain_name {
+	echo "$1" | grep '\.' > /dev/null
+}
+
+function ensure_ssh_access_to {
+	user="$1"
+	host="$2"
+	destination="$user@$host"
+
+	ssh -o StrictHostKeyChecking=no -o PasswordAuthentication=no $destination 'date' > /dev/null 2>&1 || {
+		MY_SSH_KEY=`cat ~/.ssh/id_rsa.pub`
+		note "Please add the following key to ~$user/.ssh/authorized_keys on $host and press Enter when ready:" &&
+		echo &&
+		echo -e `color_in_yellow $MY_SSH_KEY` &&
+		read -n 1
+	}
+	ssh $destination 'date' > /dev/null 2>&1 || ssh-keyscan -H $host >> ~/.ssh/known_hosts
+	ssh $destination 'date' > /dev/null 2>&1 && success "Connection to $destination working."
+}
+
+function ensure_git_access_to {
+	APP_REPO_URL="$1"
+	APP_REPO_USER=`echo "$APP_REPO_URL" | cut -d'@' -f 1`
+	APP_REPO_HOST=`echo "$APP_REPO_URL" | cut -d'@' -f 2 | cut -d':' -f 1`
+
+	ssh $APP_REPO_USER@$APP_REPO_HOST >/dev/null 2>&1 || ssh-keyscan -H $APP_REPO_HOST >> ~/.ssh/known_hosts
+
+	git ls-remote $APP_REPO_URL >/dev/null 2>&1 || {
+		note "Allow this key access to $APP_REPO_URL:" &&
+		cat ~/.ssh/id_rsa.pub &&
+		press_any_key 0
+	}
+
+	git ls-remote $APP_REPO_URL >/dev/null 2>&1 && {
+		success "Access to $APP_REPO_URL established."
+		return 0
+	} || {
+		error "Unable to access $APP_REPO_URL. Check the permissions and try again."
+		return 1
+	}
+}
+
+function copy_file { # $1 = source, [ $2 = target ]
+	SOURCE="$ROOT/$1"
+	[ $2 ] && TARGET=$2 || TARGET=/${1#*/}
+	if [ -d "$TARGET" ]; then
+		TARGET="`dirname $TARGET`/`basename $SOURCE`"
+	fi
+	if cmp $SOURCE $TARGET > /dev/null 2>&1; then
+		success "File already up-to-date: $TARGET"
+	else
+		verbose "Copying $SOURCE to $TARGET"
+		cp $SOURCE $TARGET
+	fi
+}
+
+function copy_template { # $1 = source, [ $2 = target ]
+	SOURCE="$ROOT/$1"
+	[ $2 ] && TARGET=$2 || TARGET=/${1#*/}
+	RENDERED_TEMPLATE="$TARGET.tmp"
+	echo -n "" > "$RENDERED_TEMPLATE"
+	[ -f $SOURCE ] || { error "Missing source template: $SOURCE"; return 1; }
+	cat $SOURCE | while IFS= read LINE ; do
+		while [[ "$LINE" =~ (\$\{[a-zA-Z_][a-zA-Z_0-9]*\}) ]] ; do
+			VARNAME=${BASH_REMATCH[1]}
+			VALUE="$(eval echo "\"$VARNAME\"")"
+			if [ -z "$VALUE" ]; then
+				error "Empty variable $VARNAME"
+				while [[ "$VALUE" == "" ]]; do
+					ask "Enter value for $VARNAME:" '' 0
+					VALUE="$REPLY"
+				done
+			fi
+			verbose "Replacing $VARNAME with '$VALUE' in $1"
+			LINE=${LINE//$VARNAME/$VALUE}
+		done
+		echo "$LINE" >> "$RENDERED_TEMPLATE"
+	done
+	if cmp "$RENDERED_TEMPLATE" $TARGET > /dev/null 2>&1; then
+		success "File already up-to-date: $TARGET"
+		\rm -f "$RENDERED_TEMPLATE"
+	else
+		verbose "Copying $SOURCE to $TARGET"
+		\mv -f "$RENDERED_TEMPLATE" $TARGET
+	fi
+}
+
+function remove_extension {
+	echo $1 | cut -d'.' -f 1
+}
+
+function color_in_red {
+	echo -e "\033[31m$@\033[0m"
+}
+
+function color_in_green {
+	echo -e "\033[32m$@\033[0m"
+}
+
+function color_in_yellow {
+	echo -e "\033[33m$@\033[0m"
+}
+
+function color_in_light_cyan {
+	echo -e "\033[96m$@\033[0m"
+}
+
+function verbose {
+	timestamp=`date +'%Y-%m-%d %H:%M:%S'`
+	log_tag=`remove_extension $SCRIPT_NAME`
+	echo -e "$timestamp [ `color_in_light_cyan $log_tag` ] $@"
+}
+
+function error {
+	verbose `color_in_red "$@"`
+}
+
+function success {
+	verbose `color_in_green "$@"`
+}
+
+function note {
+	verbose `color_in_yellow "$@"`
+}
