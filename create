@@ -13,7 +13,9 @@ ask_required "Pick a container ID" $CONTAINER_ID 5 && CONTAINER_ID=$REPLY
 CONTAINER_PATH="/var/lib/lxc/$CONTAINER_NAME"
 
 if [ -f $CONTAINER_PATH/config ]; then
-	success "Container '$CONTAINER_NAME' already created, reconfiguring..."
+	success "Container '$CONTAINER_NAME' already exists."
+	lxc-info -n $CONTAINER_NAME
+	exit 1
 else
 	verbose "Creating container '$CONTAINER_NAME' with ID $CONTAINER_ID, please wait..."
 	lxc-create -n $CONTAINER_NAME -t debian -- -r wheezy
