@@ -53,7 +53,7 @@ sshpass -p root ssh -o StrictHostKeyChecking=no root@10.255.0.$CONTAINER_ID "
 "
 
 verbose 'Installing default dotfiles...'
-sshpass -p $PASSWORD scp -r -o StrictHostKeyChecking=no templates/dotfiles/* root@10.255.0.$CONTAINER_ID:.
+sshpass -p $PASSWORD scp -r -o StrictHostKeyChecking=no `dirname $0`/templates/dotfiles/.[a-z]* root@10.255.0.$CONTAINER_ID:.
 
 verbose "Setting up NAT redirection..."
 PORT_NUMBER="22`printf '%02d' $CONTAINER_ID`"
