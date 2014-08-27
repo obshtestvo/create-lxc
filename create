@@ -52,6 +52,9 @@ sshpass -p root ssh -o StrictHostKeyChecking=no root@10.255.0.$CONTAINER_ID "
 	&& touch .ssh/authorized_keys
 "
 
+verbose 'Installing default dotfiles...'
+sshpass -p $PASSWORD scp -r -o StrictHostKeyChecking=no templates/dotfiles/* root@10.255.0.$CONTAINER_ID:.
+
 verbose "Setting up NAT redirection..."
 PORT_NUMBER="22`printf '%02d' $CONTAINER_ID`"
 IP_TABLES_COMMAND="iptables -t nat -A PREROUTING -i eth0 -p tcp -m tcp --dport $PORT_NUMBER -j DNAT --to-destination 10.255.0.$CONTAINER_ID:22"
