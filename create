@@ -48,6 +48,8 @@ sshpass -p root ssh -o StrictHostKeyChecking=no root@10.255.0.$CONTAINER_ID "
 	&& apt-get update \
 	&& apt-get -y dist-upgrade \
 	&& apt-get -y install vim iputils-ping python python-pip gcc libc6-dev python-dev git
+	&& mkdir .ssh
+	&& touch .ssh/authorized_keys
 "
 
 verbose "Setting up NAT redirection..."
