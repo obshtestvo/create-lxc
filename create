@@ -39,6 +39,11 @@ which sshpass > /dev/null || { verbose "Installing sshpass..." && apt-get -y ins
 verbose "Starting container '$CONTAINER_NAME' in the background..."
 lxc-start -d -n $CONTAINER_NAME
 
+SECONDS_TO_WAIT_FOR_BOOTING=10
+ask "Waiting ${SECONDS_TO_WAIT_FOR_BOOTING}s for the container to boot..." \
+	'Press Enter to continue immediatelly' \
+	$SECONDS_TO_WAIT_FOR_BOOTING
+
 verbose "Logging into the container to perform additional setup..."
 PASSWORD=`< /dev/urandom tr -dc A-Za-z0-9_ | head -c30`
 note "Will change the container's root password to: $PASSWORD"
