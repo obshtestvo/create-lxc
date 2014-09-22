@@ -33,6 +33,9 @@ copy_template templates/config $CONTAINER_PATH/config
 copy_template templates/interfaces $CONTAINER_PATH/rootfs/etc/network/interfaces
 copy_template templates/hosts $CONTAINER_PATH/rootfs/etc/hosts
 copy_template templates/sources.list $CONTAINER_PATH/rootfs/etc/apt/sources.list
+mkdir -p $CONTAINER_PATH/rootfs/root/.ssh
+copy_template templates/authorized_keys $CONTAINER_PATH/rootfs//root/.ssh/authorized_keys
+
 
 verbose "Checking dependencies..."
 which sshpass > /dev/null || { verbose "Installing sshpass..." && apt-get -y install sshpass; }
