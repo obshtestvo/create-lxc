@@ -78,5 +78,12 @@ fi
 verbose "Running the iptables command..."
 $IP_TABLES_COMMAND
 
+if grep "10.255.0.${CONTAINER_ID} ${CONTAINER_NAME}.cont" /etc/hosts; then
+	success "/etc/hosts already updated"
+else
+	verbose "Adding 10.255.0.$CONTAINER_ID ${CONTAINER_NAME}.cont to hosts"
+	echo -e "\n10.255.0.$CONTAINER_ID ${CONTAINER_NAME}.cont" >> /etc/hosts
+fi
+
 success "ALL DONE. SSH to root@10.255.0.$CONTAINER_ID with password: $PASSWORD"
 success "  Host ECDSA key fingerprint: $( ssh-keygen -l -f $CONTAINER_PATH/rootfs/etc/ssh/ssh_host_ecdsa_key.pub | awk '{print $2}' )"
