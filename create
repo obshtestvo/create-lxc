@@ -31,6 +31,7 @@ verbose "MAC address will be: $MAC_ADDRESS"
 
 copy_template templates/config $CONTAINER_PATH/config
 copy_template templates/interfaces $CONTAINER_PATH/rootfs/etc/network/interfaces
+copy_template templates/hosts $CONTAINER_PATH/rootfs/etc/hosts
 copy_template templates/sources.list $CONTAINER_PATH/rootfs/etc/apt/sources.list
 
 verbose "Checking dependencies..."
