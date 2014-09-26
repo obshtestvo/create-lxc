@@ -1,0 +1,5 @@
+#!/bin/bash
+
+set -e
+
+grep 'lxc.network.ipv4 =' /var/lib/lxc/*/config | perl -ne 'print "$2\t$1\n" if (/lxc\/([\w]+).+\.(\w+)\/24/)' | sort -n
