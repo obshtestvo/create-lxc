@@ -77,7 +77,7 @@ function copy_file { # $1 = source, [ $2 = target ]
 	SOURCE="$ROOT/$1"
 	[ $2 ] && TARGET=$2 || TARGET=/${1#*/}
 	if [ -d "$TARGET" ]; then
-		TARGET="`dirname $TARGET`/`basename $SOURCE`"
+		TARGET="$TARGET/`basename $SOURCE`"
 	fi
 	if cmp $SOURCE $TARGET > /dev/null 2>&1; then
 		success "File already up-to-date: $TARGET"
@@ -89,10 +89,13 @@ function copy_file { # $1 = source, [ $2 = target ]
 
 function copy_template { # $1 = source, [ $2 = target ]
 	SOURCE="$ROOT/$1"
+	[ -f $SOURCE ] || { error "Missing source template: $SOURCE"; return 1; }
 	[ $2 ] && TARGET=$2 || TARGET=/${1#*/}
+	if [ -d "$TARGET" ]; then
+		TARGET="$TARGET/`basename $SOURCE`"
+	fi
 	RENDERED_TEMPLATE="$TARGET.tmp"
 	echo -n "" > "$RENDERED_TEMPLATE"
-	[ -f $SOURCE ] || { error "Missing source template: $SOURCE"; return 1; }
 	cat $SOURCE | while IFS= read LINE ; do
 		while [[ "$LINE" =~ (\$\{[a-zA-Z_][a-zA-Z_0-9]*\}) ]] ; do
 			VARNAME=${BASH_REMATCH[1]}
