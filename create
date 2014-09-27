@@ -42,7 +42,7 @@ if [ -f $INITIAL_AUTHORIZED_KEYS ]; then
 	verbose "Copying $INITIAL_AUTHORIZED_KEYS to $TARGET_PATH..."
 	cp ~/.ssh/authorized_keys $TARGET_PATH
 else
-	note "No initial authorized_keys file found at $INITIAL_AUTHORIZED_KEYS, the container will have no authorized_keys file"
+	note "No initial authorized_keys file found at $INITIAL_AUTHORIZED_KEYS, the container will have a blank authorized_keys file"
 fi
 
 verbose "Checking dependencies..."
@@ -65,7 +65,7 @@ sshpass -p root ssh -o StrictHostKeyChecking=no root@10.255.0.$CONTAINER_ID "
 	&& apt-get update \
 	&& apt-get -y dist-upgrade \
 	&& apt-get -y install vim iputils-ping python python-pip gcc libc6-dev python-dev git pbzip2 sudo cron-apt\
-	&& mkdir .ssh \
+	&& mkdir -p .ssh \
 	&& touch .ssh/authorized_keys
 "
 verbose "Installing cron-apt config..."
