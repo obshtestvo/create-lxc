@@ -1,1 +1,1 @@
-dist-upgrade -y -o APT::Get::Show-Upgraded=true
+upgrade -y -o APT::Get::Show-Upgraded=true
