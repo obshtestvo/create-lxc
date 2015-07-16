@@ -36,3 +36,5 @@ lxc.network.link = br0
 lxc.network.ipv4 = 10.255.0.${CONTAINER_ID}/24
 lxc.network.hwaddr = ${MAC_ADDRESS}
 lxc.network.ipv4.gateway = 10.255.0.1
+lxc.network.ipv6 = 2a00:1728:0:c::${CONTAINER_ID}/64
+lxc.network.ipv6.gateway = 2a00:1728:0:c::1
