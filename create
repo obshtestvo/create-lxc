@@ -102,3 +102,7 @@ fi
 
 success "ALL DONE. SSH to root@10.255.0.$CONTAINER_ID with password: $PASSWORD"
 success "  Host ECDSA key fingerprint: $( ssh-keygen -l -f $CONTAINER_PATH/rootfs/etc/ssh/ssh_host_ecdsa_key.pub | awk '{print $2}' )"
+
+if [ -f /usr/local/bin/rebuild-dns.sh ]; then
+	/usr/local/bin/rebuild-dns.sh
+fi
