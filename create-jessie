@@ -1,0 +1,108 @@
+#!/bin/bash
+
+set -e
+
+. `dirname $0`/helper-functions
+
+LAST_CONTAINER_ID=`grep --no-filename 'lxc.network.ipv4 =' /var/lib/lxc/*/config|cut -d'=' -f2|cut -d'/' -f1|cut -d'.' -f4|sort -n|tail -n1`
+CONTAINER_ID=$(( $LAST_CONTAINER_ID + 1 ))
+
+ask_required "Enter a container name" "$1" && CONTAINER_NAME="$REPLY"
+ask_required "Pick a container ID" $CONTAINER_ID 5 && CONTAINER_ID=$REPLY
+
+CONTAINER_PATH="/var/lib/lxc/$CONTAINER_NAME"
+
+if [ -f $CONTAINER_PATH/config ]; then
+	success "Container '$CONTAINER_NAME' already exists."
+	lxc-info -n $CONTAINER_NAME
+	exit 1
+else
+	verbose "Creating container '$CONTAINER_NAME' with ID $CONTAINER_ID, please wait..."
+	lxc-create -n $CONTAINER_NAME -t debian -- -r jessie
+	success "Container '$CONTAINER_NAME' created."
+fi
+
+HEX_ID=`echo "obase=16; $CONTAINER_ID" | bc`
+if [ ${#HEX_ID} = 1 ]; then
+	HEX_ID="0$HEX_ID"
+fi
+MAC_ADDRESS="00:00:00:00:00:$HEX_ID"
+verbose "MAC address will be: $MAC_ADDRESS"
+
+copy_template templates/jessie.config $CONTAINER_PATH/config
+copy_template templates/interfaces $CONTAINER_PATH/rootfs/etc/network/interfaces
+copy_template templates/hosts $CONTAINER_PATH/rootfs/etc/hosts
+copy_template templates/jessie.sources.list $CONTAINER_PATH/rootfs/etc/apt/sources.list
+(umask 0027 && mkdir -p $CONTAINER_PATH/rootfs/root/.ssh)
+copy_template templates/do_backup.sh $CONTAINER_PATH/rootfs/
+
+INITIAL_AUTHORIZED_KEYS="$HOME/.ssh/authorized_keys"
+if [ -f $INITIAL_AUTHORIZED_KEYS ]; then
+	TARGET_PATH="$CONTAINER_PATH/rootfs/root/.ssh/authorized_keys"
+	verbose "Copying $INITIAL_AUTHORIZED_KEYS to $TARGET_PATH..."
+	cp ~/.ssh/authorized_keys $TARGET_PATH
+else
+	note "No initial authorized_keys file found at $INITIAL_AUTHORIZED_KEYS, the container will have a blank authorized_keys file"
+fi
+
+verbose "Checking dependencies..."
+which sshpass > /dev/null || { verbose "Installing sshpass..." && apt-get -y install sshpass; }
+
+verbose "Starting container '$CONTAINER_NAME' in the background..."
+lxc-start -d -n $CONTAINER_NAME
+
+SECONDS_TO_WAIT_FOR_BOOTING=10
+ask "Waiting ${SECONDS_TO_WAIT_FOR_BOOTING}s for the container to boot..." \
+	'Press Enter to continue immediatelly' \
+	$SECONDS_TO_WAIT_FOR_BOOTING
+
+verbose "Logging into the container to perform additional setup..."
+PASSWORD=`< /dev/urandom tr -dc A-Za-z0-9_ | head -c30`
+note "Will change the container's root password to: $PASSWORD"
+sshpass -p root ssh -o StrictHostKeyChecking=no root@10.255.0.$CONTAINER_ID "
+	echo 'root:$PASSWORD' | chpasswd \
+	&& echo root password changed to: $PASSWORD \
+	&& apt-get update \
+	&& apt-get -y dist-upgrade \
+	&& apt-get -y install vim iputils-ping python python-pip gcc libc6-dev python-dev git pbzip2 sudo cron-apt\
+	&& mkdir -p .ssh \
+	&& touch .ssh/authorized_keys
+"
+verbose "Installing cron-apt config..."
+
+copy_template templates/cron-apt-config $CONTAINER_PATH/rootfs/etc/cron-apt/config
+copy_template templates/cron-apt-5-upgrade $CONTAINER_PATH/rootfs/etc/cron-apt/action.d/5-upgrade
+
+verbose 'Installing default dotfiles...'
+sshpass -p $PASSWORD scp -r -o StrictHostKeyChecking=no `dirname $0`/templates/dotfiles/.[a-z]* root@10.255.0.$CONTAINER_ID:.
+
+verbose "Setting up NAT redirection..."
+PORT_NUMBER="22`printf '%02d' $CONTAINER_ID`"
+IP_TABLES_COMMAND="iptables -t nat -A PREROUTING -i eth0 -p tcp -m tcp --dport $PORT_NUMBER -j DNAT --to-destination 10.255.0.$CONTAINER_ID:22"
+verbose $IP_TABLES_COMMAND
+
+if grep "$IP_TABLES_COMMAND" /etc/rc.local > /dev/null; then
+	success "/etc/rc.local already updated"
+else
+	verbose "Updating rc.local with:"
+	awk "/iptables -t nat -A POSTROUTING/ { print; print \"$IP_TABLES_COMMAND\"; next }1" /etc/rc.local > /tmp/rc.local
+	diff -c /etc/rc.local /tmp/rc.local || true
+	mv /tmp/rc.local /etc/rc.local
+fi
+
+verbose "Running the iptables command..."
+$IP_TABLES_COMMAND
+
+if grep "10.255.0.${CONTAINER_ID} ${CONTAINER_NAME}.cont" /etc/hosts; then
+	success "/etc/hosts already updated"
+else
+	verbose "Adding 10.255.0.$CONTAINER_ID ${CONTAINER_NAME}.cont to hosts"
+	echo -e "\n10.255.0.$CONTAINER_ID ${CONTAINER_NAME}.cont" >> /etc/hosts
+fi
+
+success "ALL DONE. SSH to root@10.255.0.$CONTAINER_ID with password: $PASSWORD"
+success "  Host ECDSA key fingerprint: $( ssh-keygen -l -f $CONTAINER_PATH/rootfs/etc/ssh/ssh_host_ecdsa_key.pub | awk '{print $2}' )"
+
+if [ -f /usr/local/bin/rebuild-dns.sh ]; then
+	/usr/local/bin/rebuild-dns.sh
+fi

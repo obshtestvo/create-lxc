@@ -1,0 +1,9 @@
+deb http://ftp.bg.debian.org/debian jessie main contrib non-free
+deb-src http://ftp.bg.debian.org/debian jessie main contrib non-free
+
+deb http://ftp.uni-sofia.bg/debian-security/ jessie/updates main
+deb-src http://ftp.uni-sofia.bg/debian-security/ jessie/updates main
+
+# jessie-updates, previously known as 'volatile'
+deb http://debian.ludost.net/debian/ jessie-updates main
+deb-src http://debian.ludost.net/debian/ jessie-updates main
